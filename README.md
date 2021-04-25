@@ -15,6 +15,8 @@ make
 
 **Caveats**
 
+Root priviledge required for `host_get_special_port`
+
 Before debugging, you need to make a breakpoint, right after we notify debugger of the mannually loaded KEXT. `fairplay_init` can be a good breakpoint.
 
 ```
