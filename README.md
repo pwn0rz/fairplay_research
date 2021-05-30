@@ -15,7 +15,7 @@ make
 
 **Caveats**
 
-Apple Sillicon Device required, tested on `11.2_20D64`, may not work on newer version
+Apple Sillicon Device required, tested on `11.2_20D64`, may not work on `11.3` and newer version
 
 Root priviledge required for `host_get_special_port`
 
