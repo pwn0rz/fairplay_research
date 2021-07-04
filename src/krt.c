@@ -52,7 +52,7 @@ int krt_init(uint64_t image_base) {
 }
 
 void backtrace() {
-  uint64_t pc = __builtin_return_address(1);
+  uint64_t pc = (uint64_t)__builtin_return_address(1);
   printf("%#llx ==> ", pc - 4 - krt_image_base);
 }
 
@@ -107,7 +107,7 @@ void clock_get_calendar_microtime(uint32_t *secs, uint32_t *microsecs) {
 
 void *fp_host_priv_self() {
   backtrace();
-  void *ret = (void *)(mach_host_self());
+  void *ret = (void *)(uintptr_t)(mach_host_self());
   printf("host_priv_self() => %p\n", ret);
   return ret;
 }
@@ -130,8 +130,8 @@ kern_return_t fp_host_get_special_port(void *host_priv, int node, int which,
 void *fp_mig_get_reply_port() {
   backtrace();
   mach_port_t port = mig_get_reply_port();
-  printf("mig_get_reply_port() => %p\n", port);
-  return (void *)port;
+  printf("mig_get_reply_port() => %#x\n", port);
+  return (void *)(uintptr_t)port;
 }
 
 typedef struct {
@@ -142,8 +142,6 @@ typedef struct {
   mach_port_name_t msgh_voucher_port;
   mach_msg_id_t msgh_id;
 } mach_kmsg_header_t;
-
-
 
 #pragma pack(push, 4)
 struct meta_info{
@@ -240,8 +238,8 @@ mach_msg_return_t mach_msg_rpc_from_kernel_proper(mach_msg_header_t *msg,
       MACH_MSGH_BITS_COMPLEX | MACH_MSGH_BITS(19, MACH_MSG_TYPE_MAKE_SEND);
   urpc.req.header.msgh_size = sizeof(struct UFPRequest);
   urpc.req.header.msgh_id = 502;
-  urpc.req.header.msgh_local_port = krpc->req.header.msgh_local_port;
-  urpc.req.header.msgh_remote_port = krpc->req.header.msgh_remote_port;
+  urpc.req.header.msgh_local_port = (mach_port_t)krpc->req.header.msgh_local_port;
+  urpc.req.header.msgh_remote_port = (mach_port_t)krpc->req.header.msgh_remote_port;
   urpc.req.header.msgh_voucher_port = MACH_PORT_NULL;
 
   memcpy(&urpc.req.body, &krpc->req.body,
@@ -280,8 +278,8 @@ mach_msg_return_t mach_msg_rpc_from_kernel_proper(mach_msg_header_t *msg,
   krpc->res.header.msgh_bits = urpc.res.header.msgh_bits;
   krpc->res.header.msgh_size = urpc.res.header.msgh_size + 8;
   krpc->res.header.msgh_id = urpc.res.header.msgh_id;
-  krpc->res.header.msgh_local_port = urpc.res.header.msgh_local_port;
-  krpc->res.header.msgh_remote_port = urpc.res.header.msgh_remote_port;
+  krpc->res.header.msgh_local_port = (void*)(uintptr_t)urpc.res.header.msgh_local_port;
+  krpc->res.header.msgh_remote_port = (void*)(uintptr_t)urpc.res.header.msgh_remote_port;
   krpc->res.header.msgh_voucher_port = urpc.res.header.msgh_voucher_port;
   memcpy(&krpc->res.body, &urpc.res.body,
          sizeof(struct KFPResponse) - offsetof(struct KFPResponse, body));
@@ -311,7 +309,7 @@ kern_return_t kmem_alloc(void *map, vm_offset_t *addrp, vm_size_t size,
 
 void kmem_free(void *map, vm_offset_t addr, vm_size_t size) {
   backtrace();
-  printf("kmem_free(map=%p,addr=%#llx,size=%#lx)\n", map, addr, size);
+  printf("kmem_free(map=%p,addr=%#lx,size=%#lx)\n", map, addr, size);
   free((void *)addr);
 }
 
@@ -322,7 +320,7 @@ kern_return_t vm_map_copyin(void *src_map, vm_map_address_t src_addr,
   void *buff = malloc(len);
   memcpy(buff, (void *)src_addr, len);
   *copy_result = (uint64_t)buff;
-  printf("vm_map_copyin(src_map=%#llx,src=%#llx,len=%llx,src_destroy=%d,copy_"
+  printf("vm_map_copyin(src_map=%p,src=%#llx,len=%llx,src_destroy=%d,copy_"
          "result=%p)\n",
          src_map, src_addr, len, src_destroy, copy_result);
   return KERN_SUCCESS;
@@ -383,7 +381,7 @@ int aes_decrypt_cbc(const unsigned char *in_blk, const unsigned char *in_iv, uns
   backtrace();
   struct aes_decrypt_ctx *dec_ctx = (struct aes_decrypt_ctx*)ctx;
   printf("aes_decrypt_cbc(in=%p,iv=%p,n_blk=%#x,out=%p,ctx=%p)\n",in_blk,in_iv,num_blk,out_blk,ctx);
-  printf("\taes-%d-cbc key: ",dec_ctx->key_len * 8,dec_ctx->key_len * 8);
+  printf("\taes-%d-cbc key: ", dec_ctx->key_len * 8);
   bytes_dump(dec_ctx->key,dec_ctx->key_len);
   printf(", iv: ");
   bytes_dump(in_iv,16);
@@ -410,7 +408,7 @@ int aes_decrypt_cbc(const unsigned char *in_blk, const unsigned char *in_iv, uns
 void *IOMalloc(vm_size_t size) {
   backtrace();
   void *p = malloc(size);
-  printf("IOMalloc(%#llx) => %p\n", size, p);
+  printf("IOMalloc(%#lx) => %p\n", size, p);
   return p;
 }
 
@@ -495,13 +493,14 @@ void IOLog(const char *format, ...) {
 void *OSObject_retain(void *obj) {
   backtrace();
   printf("OSObject::retain(%p)\n", obj);
+  return obj;
 }
 
 void *IOService_serviceMatching(const char *class_name, void *table) {
   backtrace();
-  void *result = class_name;
-  printf("IOService::serviceMatching(\"%s\",%p) => %p\n", class_name, table);
-  return class_name;
+  void *result = (void*)class_name;
+  printf("IOService::serviceMatching(\"%s\",%p) => %p\n", class_name, table, result);
+  return result;
 }
 
 void *IOService_waitForService(void *matching, mach_timespec_t *timeout) {
@@ -517,7 +516,7 @@ void *IOService_waitForService(void *matching, mach_timespec_t *timeout) {
       if (ctor == NULL) {
         break;
       } else {
-        service = ctor(service_name);
+        service = ctor((char*)service_name);
         break;
       }
     }
@@ -566,8 +565,8 @@ IOBufferMemoryDescriptor_inTaskWithOptions(uint32_t task, uint32_t options,
   for (uint32_t i = 0; i < IOBUFFMEM_DESC_VTABLE_COUNT; i++) {
     descriptor->vtable[i] = (uint64_t)unhandled_vtable;
   }
-  descriptor->vtable[0x218 / 8] = IOBufferMemoryDescriptor_prepare;
-  descriptor->vtable[0x308 / 8] = IOBufferMemoryDescriptor_getVirtualAddress;
+  descriptor->vtable[0x218 / 8] = (uintptr_t)IOBufferMemoryDescriptor_prepare;
+  descriptor->vtable[0x308 / 8] = (uintptr_t)IOBufferMemoryDescriptor_getVirtualAddress;
 
   descriptor->capacity = capacity;
   descriptor->buff = malloc(capacity);

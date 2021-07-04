@@ -155,11 +155,11 @@ int fairplay_decrypt_macho64(struct mach_header_64 *kext, uint32_t fp_handle, co
 
   struct encryption_info_command_64 *lc_enc_in =
       (struct encryption_info_command_64 *)macho64_get_lc(
-          mh_in, LC_ENCRYPTION_INFO_64);
+          (struct mach_header_64*)mh_in, LC_ENCRYPTION_INFO_64);
 
-  uint32_t cryptoff = macho_swap_endian_32(mh_in,lc_enc_in->cryptoff);
-  uint32_t cryptsize = macho_swap_endian_32(mh_in,lc_enc_in->cryptsize);
-  uint32_t cryptid = macho_swap_endian_32(mh_in,lc_enc_in->cryptid);
+  uint32_t cryptoff = macho_swap_endian_32((struct mach_header_64*)mh_in,lc_enc_in->cryptoff);
+  uint32_t cryptsize = macho_swap_endian_32((struct mach_header_64*)mh_in,lc_enc_in->cryptsize);
+  uint32_t cryptid = macho_swap_endian_32((struct mach_header_64*)mh_in,lc_enc_in->cryptid);
   if(cryptid != 1) {
     printf("not fairplay encrypted executable\n");
     return 0;
@@ -193,11 +193,11 @@ int fairplay_decrypt_macho32(struct mach_header_64 *kext, uint32_t fp_handle, co
 
   struct encryption_info_command *lc_enc_in =
       (struct encryption_info_command *)macho32_get_lc(
-          mh_in, LC_ENCRYPTION_INFO);
+          (struct mach_header*)mh_in, LC_ENCRYPTION_INFO);
 
-  uint32_t cryptoff = macho_swap_endian_32(mh_in,lc_enc_in->cryptoff);
-  uint32_t cryptsize = macho_swap_endian_32(mh_in,lc_enc_in->cryptsize);
-  uint32_t cryptid = macho_swap_endian_32(mh_in,lc_enc_in->cryptid);
+  uint32_t cryptoff = macho_swap_endian_32((struct mach_header_64*)mh_in,lc_enc_in->cryptoff);
+  uint32_t cryptsize = macho_swap_endian_32((struct mach_header_64*)mh_in,lc_enc_in->cryptsize);
+  uint32_t cryptid = macho_swap_endian_32((struct mach_header_64*)mh_in,lc_enc_in->cryptid);
   if(cryptid != 1) {
     printf("not fairplay encrypted executable\n");
     return 0;
@@ -219,8 +219,8 @@ int fairplay_decrypt_macho32(struct mach_header_64 *kext, uint32_t fp_handle, co
 
   struct encryption_info_command *lc_enc_out =
       (struct encryption_info_command *)
-          macho64_get_lc(mh_out, LC_ENCRYPTION_INFO_64);
-  lc_enc_out->cryptid = macho_swap_endian_32(mh_out,0);
+          macho64_get_lc((struct mach_header_64*)mh_out, LC_ENCRYPTION_INFO_64);
+  lc_enc_out->cryptid = macho_swap_endian_32((struct mach_header_64*)mh_out,0);
   return 0;
 }
 
@@ -291,7 +291,15 @@ int fairplay_decrypt(struct mach_header_64 *kext, const char *filename_in,const 
   return 0;
 }
 
-int main() {
+int main(int argc, char** argv)
+{
+  if (argc != 3) {
+    char *cmdname = strrchr(argv[0], '/');
+    cmdname = (cmdname) ? cmdname+1 : argv[0];
+    printf("Usage: %s <encrypted_binary> <output_path>\n", cmdname);
+    return 1;
+  }
+
   // allocate a stub space
   mach_vm_address_t stub_code_start;
   mach_vm_size_t stub_code_size = mach_vm_round_page(SYM_REG_COUNT_MAX * 32);
@@ -361,7 +369,5 @@ int main() {
   // "/Applications/Bilibili HD.app/WrappedBundle/bili-hd2" for 4096 bytes encrypted Mach-O
   // "/Applications/F5 Access.app/Wrapper/F5 Access.app/F5 Access" for Mach-O FAT
   //"/Applications/COVID-19.app/WrappedBundle/COVID-19" for iOS Mach-O
-  return fairplay_decrypt(
-      kext,  "/Applications/COVID-19.app/WrappedBundle/COVID-19" ,
-      "/tmp/decrypted");
+  return fairplay_decrypt(kext, argv[1], argv[2]);
 }

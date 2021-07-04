@@ -96,8 +96,9 @@ const char *macho_arch_string(struct mach_header_64 *mh){
   case CPU_TYPE_X86_64:
     return "x64";
   default:
-    return "unknown";
+    break;
   }
+  return "unknown";
 }
 
 struct mach_header_64 *
@@ -270,6 +271,7 @@ int macho_fat_for_each_macho(struct mach_header_64 *mh,int (^cb)(struct mach_hea
     assert(macho_is_macho(mh));
     cb(mh,-1);
   }
+  return 0;
 };
 
 
@@ -302,11 +304,11 @@ int macho32_for_each_lc(struct mach_header *mh, int (^cb)(struct load_command *l
   int ret = 0;
   struct load_command *lc = (struct load_command *)(mh + 1);
 
-  uint32_t ncmds = macho_swap_endian_32(mh,mh->ncmds);
-  uint32_t sizeofcmds = macho_swap_endian_32(mh,mh->sizeofcmds);
+  uint32_t ncmds = macho_swap_endian_32((struct mach_header_64*)mh,mh->ncmds);
+  uint32_t sizeofcmds = macho_swap_endian_32((struct mach_header_64*)mh,mh->sizeofcmds);
 
   for (uint32_t i = 0; i < ncmds; i++) {
-    uint32_t cmdsize = macho_swap_endian_32(mh,lc->cmdsize);
+    uint32_t cmdsize = macho_swap_endian_32((struct mach_header_64*)mh,lc->cmdsize);
     assert((uint8_t *)lc + cmdsize <= (uint8_t *)(mh + 1) + sizeofcmds);
     ret = cb(lc);
     if (ret) {

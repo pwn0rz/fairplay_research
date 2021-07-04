@@ -1,4 +1,4 @@
-# Poorman's Kernel Debuger
+# Poor Man's Kernel Debuger
 
 This project loads `FairplayIOKit` kernel driver into userspace and make it possible for LLDB to debug
 
@@ -15,9 +15,9 @@ make
 
 **Caveats**
 
-Apple Sillicon Device required, tested on `11.2_20D64`, may not work on `11.3` and newer version
+Apple Silicon Device required, tested on `11.2_20D64`, may not work on `11.3` and newer version.
 
-Root priviledge required for `host_get_special_port`
+Root privileges required for `host_get_special_port`.
 
 Before debugging, you need to make a breakpoint, right after we notify debugger of the mannually loaded KEXT. `fairplay_init` can be a good breakpoint.
 
@@ -50,6 +50,6 @@ Set-up a breakpoint. Even watchpoint is possible `:3`
 Breakpoint 2: where = FairPlayIOKit`fcHfFIGhsx, address = 0x000000010056bbe8
 ```
 
-# Addition
+# Additional Resources
 - Have a look at `tools` folder
 - CVE-2021-1791: https://gist.github.com/pwn0rz/e34ab9f6e46956621a9d4f98cf222320
