@@ -1,9 +1,11 @@
 #include "krt.h"
 #include "ulinker.h"
+#include "tracekit.h"
 #include <assert.h>
 #include <fcntl.h>
 #include <mach/mach.h>
 #include <mach/mach_vm.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -99,7 +101,7 @@ void unhandled_imports(uint64_t tagged_id) {
   __asm__("BRK #0");
 }
 
-const char *kext_path = "/System/Library/Extensions/FairPlayIOKit.kext/Contents/MacOS/FairPlayIOKit";
+const char *kext_path = "files/FairPlayIOKit_macOS_11.2_20D64";
 
 int fairplay_init(struct mach_header_64 *kext){
   // service start stuff
@@ -358,6 +360,17 @@ int main(int argc, char** argv)
 
   krt_init((uint64_t)kext);
 
+  //get text section of kext
+  struct section_64 *sec_text = macho64_get_sec(kext, "__TEXT_EXEC" , "__text");
+  assert(sec_text != NULL);
+
+  //allocate trace buff and instrument text section
+  struct trace_item *buff = malloc(sizeof(struct trace_item) * 1000000);
+  set_trace_buff(buff, 1000000);
+
+  uintptr_t sec_text_start = (uintptr_t)kext + sec_text->addr;
+  assert( 0 == instrument_area((void*)sec_text_start, sec_text->size));
+
   printf("[*] press any key to start fairplay\n");
   //getchar();
 
@@ -369,5 +382,8 @@ int main(int argc, char** argv)
   // "/Applications/Bilibili HD.app/WrappedBundle/bili-hd2" for 4096 bytes encrypted Mach-O
   // "/Applications/F5 Access.app/Wrapper/F5 Access.app/F5 Access" for Mach-O FAT
   //"/Applications/COVID-19.app/WrappedBundle/COVID-19" for iOS Mach-O
-  return fairplay_decrypt(kext, argv[1], argv[2]);
+  ret = fairplay_decrypt(kext, argv[1], argv[2]);
+
+
+  return ret;
 }

@@ -16,6 +16,7 @@ struct class_meta {
 
 extern uint32_t PAGE_SHIFT_CONST;
 extern uint32_t kernel_task;
+extern uint64_t krt_image_base;
 
 int krt_init(uint64_t image_base);
 
