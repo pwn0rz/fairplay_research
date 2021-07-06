@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <mach/mach.h>
 #include <mach/mach_vm.h>
+#include <mach/mach_time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
@@ -722,30 +723,37 @@ int macho_loaded_for_each_chained_fixup(struct mach_header_64 *mh, int (^bind_cb
 }
 
 
+enum dyld_notify_mode { dyld_notify_adding=0, dyld_notify_removing=1, dyld_notify_remove_all=2 };
+
+
 int macho_loaded_add_to_all_images(struct mach_header_64 *mh, const char *image_path){
   struct task_dyld_info dyld_info;
   uint32_t count = TASK_DYLD_INFO_COUNT;
   kern_return_t kr = task_info(mach_task_self(),TASK_DYLD_INFO,(task_info_t)&dyld_info,&count);
   assert(kr == KERN_SUCCESS);
 
-  struct dyld_all_image_infos *infos = (struct dyld_all_image_infos *)dyld_info.all_image_info_addr;
-  struct mach_header_64* dyld = (struct mach_header_64*)infos->dyldImageLoadAddress;
+  struct dyld_all_image_infos *all_image_infos = (struct dyld_all_image_infos *)dyld_info.all_image_info_addr;
+  struct mach_header_64* dyld = (struct mach_header_64*)all_image_infos->dyldImageLoadAddress;
 
-  void (*addImagesToAllImages)(uint32_t infoCount, const struct dyld_image_info info[]) = NULL;
-  const char* (*notifyGDB)(uint32_t state, uint32_t infoCount, const struct dyld_image_info info[]) = NULL;
+  void (*dyld_debugger_notification)(enum dyld_notify_mode mode, unsigned long count, struct mach_header_64 *mh[]) = NULL;
+  dyld_debugger_notification = macho_loaded_resolve_sym(dyld, "__dyld_debugger_notification");
 
-  addImagesToAllImages = macho_loaded_resolve_sym(dyld,"__Z20addImagesToAllImagesjPK15dyld_image_info");
-  notifyGDB = macho_loaded_resolve_sym(dyld,"__Z9notifyGDB17dyld_image_statesjPK15dyld_image_info");
+  assert(dyld_debugger_notification != NULL);
 
-  assert(addImagesToAllImages != NULL);
-  assert(notifyGDB != NULL);
+  const struct dyld_image_info*  old_images = all_image_infos->infoArray;
+  const uint32_t old_image_count = all_image_infos->infoArrayCount;
+  all_image_infos->infoArray = NULL;
 
-  struct dyld_image_info info;
-  info.imageFileModDate = 0;
-  info.imageFilePath = image_path;
-  info.imageLoadAddress = (const struct mach_header*)mh;
+  struct dyld_image_info*  new_images = malloc(sizeof(struct dyld_image_info) * (old_image_count  + 1));
+  memcpy(new_images, old_images, sizeof(struct dyld_image_info) * old_image_count);
 
-  addImagesToAllImages(1,&info);
-  notifyGDB(50,1,&info); //notify: dyld_image_state_initialized
+  new_images[old_image_count].imageFileModDate = mach_absolute_time();
+  new_images[old_image_count].imageFilePath = strdup(image_path);
+  new_images[old_image_count].imageLoadAddress = (const struct mach_header*)mh;
+
+  all_image_infos->infoArrayCount = old_image_count + 1;
+  all_image_infos->infoArray = new_images;
+
+  dyld_debugger_notification(dyld_notify_adding, 1, &mh);
   return 0;
 }
