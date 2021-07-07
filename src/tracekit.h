@@ -16,5 +16,6 @@ int set_trace_buff(struct trace_item* items, size_t count);
 
 int instrument_area(void *start ,size_t size);
 
+uint64_t get_trace_count();
 
 #endif /*ULOADER_TRACE_H*/

@@ -21,6 +21,48 @@ static struct trace_item    *g_trace_buff       = NULL;
 static atomic_uint_fast64_t  g_trace_counter    = 0;
 static size_t                g_trace_max        = 0;
 
+bool hold_cond(uint8_t cond, uint8_t nzcv){
+    uint8_t eq = (nzcv >> 2) & 0x1; // z, !ne
+    uint8_t cs = (nzcv >> 1) & 0x1; // c, !cc
+    uint8_t mi = (nzcv >> 3) & 0x1; // n, !pl
+    uint8_t vs = nzcv & 0x1; //v, !vc
+
+    uint8_t hi = cs && (!eq); // !ls
+    uint8_t ge = (mi == vs); // !lt
+    uint8_t gt = (mi == vs && eq == 0); // !le
+
+    bool r;
+    switch ( (cond >> 1) & 0x7 ) {
+        case 0:
+            r = !eq;
+            break;
+        case 1:
+            r = !cs;
+            break;
+        case 2:
+            r = !mi;
+            break;
+        case 3:
+            r = !vs;
+            break;
+        case 4:
+            r = !hi;
+            break;
+        case 5:
+            r = !ge;
+            break;
+        case 6:
+            r = !gt;
+            break;
+        default:
+            assert(cond != 7);
+    }
+
+    if(cond & 0x1){
+        r = !r;
+    }
+    return r;
+}
 
 static void breakpoint_handler(int signnum, siginfo_t* info, void *context){
     // get breakpoint address and context
@@ -72,8 +114,33 @@ static void breakpoint_handler(int signnum, siginfo_t* info, void *context){
 
         fprintf(stderr, "%#llx: b %#llx\n", (mach_vm_address_t)pc - krt_image_base, ctx_data - krt_image_base);
         return;
-    }else if((opcode & 0xffff07e0) == 0x1a9f07c0){/*32bit cset*/
-        //TODO
+    }else if((opcode & 0xffff07e0) == 0x1a9f07e0){/*32bit cset*/
+        // cset wd, cond
+        uint32_t wd = opcode & 0x1f;
+        uint8_t cond = (opcode >> 12) & 0xf;
+
+        uint32_t cpsr = ctx->uc_mcontext->__ss.__cpsr;
+        uint8_t nzcv = (cpsr >> 28) & 0xf;
+
+        uint64_t v = ctx->uc_mcontext->__ss.__x[wd];
+        if(hold_cond(cond, nzcv)){    
+            v = (v & 0xffffffff00000000) | 0x1;
+        }else{
+            v = (v & 0xffffffff00000000) | 0x0;
+        }
+        ctx->uc_mcontext->__ss.__x[wd] = v;
+        ctx->uc_mcontext->__ss.__pc = (uint64_t)pc + 4;
+
+        ncov = atomic_fetch_add(&g_trace_counter, 1);
+        g_trace_buff[ncov].addr = (uint64_t)pc;
+        g_trace_buff[ncov].context[0] = v & 0x1; //is cset flag set?
+
+        if(ncov >= g_trace_max){
+            return;
+        }
+
+        fprintf(stderr, "%#llx: cset %s\n", (mach_vm_address_t)pc - krt_image_base, (v & 0x1) ? "true" : "false");
+        return;
     }else{
         fprintf(stderr, "Unhandled sigtrap at %p\n", info->si_addr);
         abort();
@@ -134,8 +201,8 @@ int instrument_area(void *start ,size_t size){
         uint32_t opcode = *pos;
         if( 
             (opcode & 0xfffffc00) == 0xd73f0800 /*blraa*/ || 
-            (opcode & 0xfffffc00) == 0xd71f0800 /*braa*/  //|| 
-            //(opcode & 0xffff07e0) == 0x1a9f07c0 /*32bit cset*/
+            (opcode & 0xfffffc00) == 0xd71f0800 /*braa*/  || 
+            (opcode & 0xffff07e0) == 0x1a9f07e0 /*32bit cset*/
         ){
             uint32_t *opcode_shadow = shadow_addr(pos);
             *opcode_shadow = opcode;
@@ -146,4 +213,8 @@ int instrument_area(void *start ,size_t size){
 
     signal(SIGTRAP , (void(*)(int))breakpoint_handler);
     return 0;
+}
+
+uint64_t get_trace_count(){
+    return atomic_load(&g_trace_counter);
 }
