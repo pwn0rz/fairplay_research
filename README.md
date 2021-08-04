@@ -11,6 +11,11 @@ cmake ..
 make
 ```
 
+# Notice
+
+It has a built-in branch tracing support, before debugging in lldb, you might have to disable this feaure by comment the relevant code
+
+
 # How to Debug
 
 **Caveats**
