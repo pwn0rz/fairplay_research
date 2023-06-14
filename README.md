@@ -11,6 +11,11 @@ cmake ..
 make
 ```
 
+# Procedure
+1. FairplayIOKit send mig request to fairplayd at `uf_setup_from_fp`
+3. fairplayd talks to FairplayIOKit method `ucRunversiond`, hw aes involved
+4. FairplayIOKit received mig response and do decryption, no hw aes
+
 # Notice
 
 It has a built-in branch tracing support, before debugging in lldb, you might have to disable this feaure by comment the relevant code
