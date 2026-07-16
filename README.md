@@ -13,7 +13,7 @@ make
 
 # Procedure
 1. FairplayIOKit send mig request to fairplayd at `uf_setup_from_fp`
-2. fairplayd talks to FairplayIOKit method `ucRunversiond`, hw aes involved
+2. fairplayd talks to FairplayIOKit method `ucRunversiond`, hw aes involved (UID 0x899)
 3. FairplayIOKit received mig response and do decryption, no hw aes
 
 # Notice
